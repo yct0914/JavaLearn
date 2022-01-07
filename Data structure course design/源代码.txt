@@ -1,0 +1,411 @@
+//题 39：教学计划排课系统
+//问题描述：假设任何专业都有固定的学习年限，每学年含两学期，每学期的
+//时间长度和学分上限均相等。每个专业开设的课程都是确定的，且课程在开设时
+//间的安排必须满足先修关系。每门课程的先修课程是确定的（可自行设计），可
+//有任意多门，也可以没有。每门课恰好占一个学期。试根据此问题描述，设计一
+//个教学计划编制程序，完成如下功能：
+//实现要求：
+//1) 输入参数包括：学期总数，一学期的学分上限，每门课的课程号（固
+//定占 8 位的字母数字串）、学分和直接先修课程的课程号；（数据课
+//程教师提供）
+//2) 自行设计编排策略，每个学期的学分尽量均衡；
+//3) 利用拓扑排序求出所有的拓扑序列，查看课程之间的拓扑序列；若无
+//解，可反馈教学计划编制出错信息；
+//4) 输出任意一个学期的课程信息，包括课程名称、课程与学分；
+//5) 按照课程查询任一门课程所属的学期；
+//6) 采用图形用户界面实现。
+#include "mainwindow.h"
+#include "ui_mainwindow.h"
+#include<QBitmap>
+#include <QFile>
+#include <QDebug>
+#include<iostream>
+#include<QString>
+#include<QList>
+#include<string>
+#include<vector>
+#include<stack>
+#include<QFileDialog>
+#include<list>
+using namespace std;
+
+
+
+
+struct Lesson{
+    QString LessonName;
+    QString LessonNum;
+    double Credit;
+    vector<int> PreLessons;
+    int tag;
+    bool hasPre;
+};
+
+struct Graph {
+   vector<list<int>> Adj;
+   vector<int> inDegree;
+   vector<Lesson> lessons;
+   int LessonNum = 0;
+   int TermsNum;
+   double MaxCredit;
+   double AllCredits = 0;
+};
+ Graph G;
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent)
+    , ui(new Ui::MainWindow)
+{
+    ui->setupUi(this);
+    ui->textBrowser->insertPlainText("Welcome to Arrange Lessons System!");
+    ui->textBrowser->insertPlainText("\n");
+    ui->textBrowser->insertPlainText("Please create the graph first");
+    ui->lineEdit->setPlaceholderText("input the terms count");//请输入学期总数
+    ui->lineEdit_2->setPlaceholderText("input the max_credit one term");//请输入每学期最高学分
+    ui->lineEdit_3->setPlaceholderText("input the term number");
+    ui->lineEdit_4->setPlaceholderText("input the lesson number");
+
+    // 设置按钮样式及悬浮、按下时的状态
+    ui->pushButton->setStyleSheet("QPushButton{background-color: rgb(225, 225, 225);border:2px groove gray;border-radius:10px;padding:2px 4px;border-style: outset;}"
+                                              "QPushButton:hover{background-color:rgb(229, 241, 251); color: black;}"
+                                              "QPushButton:pressed{background-color:rgb(204, 228, 247);border-style: inset;}");
+    ui->pushButton_2->setStyleSheet("QPushButton{background-color: rgb(225, 225, 225);border:2px groove gray;border-radius:10px;padding:2px 4px;border-style: outset;}"
+                                              "QPushButton:hover{background-color:rgb(229, 241, 251); color: black;}"
+                                              "QPushButton:pressed{background-color:rgb(204, 228, 247);border-style: inset;}");
+    ui->pushButton_3->setStyleSheet("QPushButton{background-color: rgb(225, 225, 225);border:2px groove gray;border-radius:10px;padding:2px 4px;border-style: outset;}"
+                                              "QPushButton:hover{background-color:rgb(229, 241, 251); color: black;}"
+                                              "QPushButton:pressed{background-color:rgb(204, 228, 247);border-style: inset;}");
+    ui->pushButton_4->setStyleSheet("QPushButton{background-color: rgb(225, 225, 225);border:2px groove gray;border-radius:10px;padding:2px 4px;border-style: outset;}"
+                                              "QPushButton:hover{background-color:rgb(229, 241, 251); color: black;}"
+                                              "QPushButton:pressed{background-color:rgb(204, 228, 247);border-style: inset;}");
+    ui->pushButton_5->setStyleSheet("QPushButton{background-color: rgb(225, 225, 225);border:2px groove gray;border-radius:10px;padding:2px 4px;border-style: outset;}"
+                                              "QPushButton:hover{background-color:rgb(229, 241, 251); color: black;}"
+                                              "QPushButton:pressed{background-color:rgb(204, 228, 247);border-style: inset;}");
+    ui->pushButton_clear->setStyleSheet("QPushButton{background-color: rgb(225, 225, 225);border:2px groove gray;border-radius:10px;padding:2px 4px;border-style: outset;}"
+                                              "QPushButton:hover{background-color:rgb(229, 241, 251); color: black;}"
+                                              "QPushButton:pressed{background-color:rgb(204, 228, 247);border-style: inset;}");
+    ui->pushButton_tpSort->setStyleSheet("QPushButton{background-color: rgb(225, 225, 225);border:2px groove gray;border-radius:10px;padding:2px 4px;border-style: outset;}"
+                                              "QPushButton:hover{background-color:rgb(229, 241, 251); color: black;}"
+                                              "QPushButton:pressed{background-color:rgb(204, 228, 247);border-style: inset;}");
+    ui->lineEdit->setStyleSheet("border:2px groove gray;border-radius:10px;padding:2px 4px");
+    ui->lineEdit_2->setStyleSheet("border:2px groove gray;border-radius:10px;padding:2px 4px");
+    ui->lineEdit_3->setStyleSheet("border:2px groove gray;border-radius:10px;padding:2px 4px");
+    ui->lineEdit_4->setStyleSheet("border:2px groove gray;border-radius:10px;padding:2px 4px");
+    ui->textBrowser_2->setStyleSheet("background:transparent;border-width:0;border-style:outset");
+    ui->textBrowser_3->setStyleSheet("background:transparent;border-width:0;border-style:outset");
+    ui->textBrowser_4->setStyleSheet("background:transparent;border-width:0;border-style:outset");
+    ui->textBrowser_5->setStyleSheet("background:transparent;border-width:0;border-style:outset");
+
+}
+
+MainWindow::~MainWindow()
+{
+    delete ui;
+}
+
+ int s1,s2,s3;
+
+void MainWindow::on_lineEdit_editingFinished()
+{
+
+    QString str1 = ui->lineEdit->text();
+    s1 = str1.toInt();
+
+}
+
+void MainWindow::on_lineEdit_2_editingFinished()
+{
+  QString  str2 = ui->lineEdit_2->text();
+   s2 = str2.toInt();
+
+
+}
+
+//void MainWindow::on_lineEdit_3_editingFinished()
+//{
+//    QString str3 = ui->lineEdit_3->text();
+//    s3 = str3.toInt();
+
+//}
+vector<int> tpvec;
+int searchLesson(QString lessonNum,Graph g){
+    for(int i = 0; i < g.lessons[i].LessonNum;i++){
+        if( g.lessons[i].LessonNum==lessonNum){
+
+        return g.lessons[i].tag;
+        }
+
+}
+}
+void GetCin(Graph& G) {
+
+    G.TermsNum = s1;
+    G.MaxCredit =s2;
+  //  G.LessonNum = s3;
+
+}
+QStringList strlist;
+QString filestr;
+void MainWindow::GetFile(Graph& G){
+
+
+
+    QFile file(filestr);//
+
+    if(!file.open(QIODevice::ReadOnly | QIODevice::Text))
+
+    {
+
+        ui->textBrowser->insertPlainText("Can't open the file!");
+
+    }
+    QTextStream in(&file);
+    QString line;
+
+
+     for(int i =0 ;!in.atEnd();i++){
+
+             line = in.readLine();
+             //读第一行
+             QStringList list;
+
+             list.append( line.split(","));
+
+             QList<QString>::Iterator it =list.begin();
+             Lesson l;
+             l.tag = i+1;
+             l.LessonNum = *it;
+             it++;
+             l.Credit = (*it).toDouble();
+             it++;
+             l.LessonName = *it;
+             it++;
+
+             if(it == list.end()){
+                 l.hasPre = false;
+              G.lessons.push_back(l);
+              G.LessonNum++;
+
+
+              continue;
+             }
+             else{
+                while(it!=list.end()){
+
+                    l.PreLessons.push_back(searchLesson((*it),G));
+
+                    it++;
+
+                }
+                l.hasPre = true;
+                G.lessons.push_back(l);
+                G.LessonNum ++;
+
+                continue;
+             }
+
+            }
+
+for(int i = 0;i < G.LessonNum;i++){
+        G.AllCredits += G.lessons[i].Credit;
+
+}
+          }
+vector<vector<Lesson>> termsLesson;
+void MainWindow::tpSort(Graph& G ){
+    stack<int> stk;
+    int n = G.LessonNum;
+    G.Adj.assign(n,list<int>());
+    G.inDegree.assign(n,0);
+    for(int i = 0; i < G.LessonNum; i++){
+        if(G.lessons[i].hasPre){
+            for(int j = 0; j < G.lessons[i].PreLessons.size();j++){
+
+                G.Adj[G.lessons[i].PreLessons[j]-1].push_back(G.lessons[i].tag-1);
+
+                G.inDegree[G.lessons[i].tag-1]++;
+            }
+        }
+    }
+    for(int i = 0;i < n;i++){
+        if(G.inDegree[i]  == 0)stk.push(i);
+    }
+    vector<int> vec;
+    int v;
+    while(!stk.empty()){
+        v = stk.top();
+        stk.pop();
+        for(auto it = G.Adj[v].begin(); it != G.Adj[v].end();it++){
+            G.inDegree[*it]--;
+            if(G.inDegree[*it] ==0)stk.push(*it);
+        }
+        vec.push_back(v);
+    }
+    if(vec.size()!= G.inDegree.size()){
+       ui->textBrowser->insertPlainText("error!");
+        return;
+    }
+    ui->textBrowser->insertPlainText("该课程文件的拓扑序列为：\n");
+    for(int i = vec.size()-1; i >= 0; i--){
+ui->textBrowser->insertPlainText(QString::number( vec[i]) + " ");
+ui->textBrowser->insertPlainText(G.lessons[vec[i]].LessonNum);
+tpvec.push_back(vec[i]);
+ui->textBrowser->insertPlainText("\n");
+    }
+    vector<double> termCredit;
+    vector<Lesson> lesson;//每个学期的课程数组
+
+    int index = 0;
+    for(int i = 0;i < G.TermsNum ;i++){
+        int credit = 0;
+        for(int j = 0; j < G.LessonNum / G.TermsNum; j++){
+            if((credit + G.lessons[tpvec[index]].Credit) <= G.MaxCredit){
+                if(index == G.LessonNum)break;
+
+                 Lesson l;
+                l.Credit = G.lessons[tpvec[index]].Credit;
+                l.LessonNum = G.lessons[tpvec[index]].LessonNum;
+                l.LessonName = G.lessons[tpvec[index]].LessonName;
+                lesson.push_back(l);
+                credit += G.lessons[tpvec[index]].Credit;
+                index++;
+
+
+    }
+}
+
+        if(i < G.LessonNum % G.TermsNum){
+            if(index == G.LessonNum)break;
+             Lesson l;
+            l.Credit = G.lessons[tpvec[index]].Credit;
+            l.LessonNum = G.lessons[tpvec[index]].LessonNum;
+            l.LessonName = G.lessons[tpvec[index]].LessonName;
+            lesson.push_back(l);
+            credit += G.lessons[tpvec[index]].Credit;
+            index ++;
+
+        }
+        termsLesson.push_back(lesson);
+        lesson.clear();
+}
+}
+
+
+
+void MainWindow::SortLesson(Graph& g){
+
+
+    int index = 0;
+    for(int i = 0;i < g.TermsNum ;i++){
+        int credit = 0;
+        ui->textBrowser->insertPlainText("Lessons of term " + QString::number(i+1) + ":" + "\n" + "                 Lesson_Number         " + "Lesson_Credit              " + "Lesson_Name" + "\n");
+        for(int j = 0; j < g.LessonNum / g.TermsNum; j++){
+            if((credit + g.lessons[tpvec[index]].Credit) <= g.MaxCredit){
+                if(index == g.LessonNum)break;
+
+                ui->textBrowser->insertPlainText("                  " + g.lessons[tpvec[index]].LessonNum + "                 " + QString::number(g.lessons[tpvec[index]].Credit) + "             " + g.lessons[tpvec[index]].LessonName + "\n");
+
+
+                credit += g.lessons[tpvec[index]].Credit;
+                index++;
+
+
+    }
+}
+
+        if(i < g.LessonNum % g.TermsNum){
+            if(index == g.LessonNum)break;
+            ui->textBrowser->insertPlainText("                  " + g.lessons[tpvec[index]].LessonNum + "                 " +  QString::number(g.lessons[tpvec[index]].Credit)+ "             " + g.lessons[tpvec[index]].LessonName + "\n");
+
+            credit += g.lessons[tpvec[index]].Credit;
+            index ++;
+
+        }
+
+
+}
+
+}
+//4) 输出任意一个学期的课程信息，包括课程名称、课程与学分；
+void MainWindow::Show_Term_Lessons(Graph& G , int num){
+
+    ui->textBrowser->insertPlainText("Lessons of term " + QString::number(num) + ":" + "\n" + "                 Lesson_Number         " + "Lesson_Credit              " + "Lesson_Name" + "\n");
+    for(int i = 0; i < termsLesson[num-1].size(); i++){
+        ui->textBrowser->insertPlainText("                  " +termsLesson[num-1][i].LessonNum + "                 " + QString::number(termsLesson[num-1][i].Credit) + "             " + termsLesson[num-1][i].LessonName + "\n");
+
+    }
+
+}
+
+//5) 按照课程查询任一门课程所属的学期；
+
+void MainWindow::Which_Term(Graph& G,QString number){
+
+    for(int i = 0 ; i < termsLesson.size(); i++){
+        for(int j = 0; j < termsLesson[i].size(); j++){
+            if(termsLesson[i][j].LessonNum == number){
+                ui->textBrowser->insertPlainText("This lesson belong to term: " + QString::number(i+1) + "\n");
+
+            }
+        }
+    }
+
+}
+
+void MainWindow::on_pushButton_clicked()
+{
+
+       GetCin(G);
+
+       GetFile(G);
+}
+
+
+void MainWindow::on_pushButton_tpSort_clicked()
+{
+    tpSort(G);
+
+
+}
+
+void MainWindow::on_pushButton_clear_clicked()
+{
+    ui->textBrowser->clear();
+}
+
+
+void MainWindow::on_pushButton_4_clicked()
+{
+    SortLesson(G);
+}
+int termnum;
+void MainWindow::on_pushButton_2_clicked()
+{
+    Show_Term_Lessons(G,termnum);
+}
+
+void MainWindow::on_lineEdit_3_editingFinished()
+{
+    QString s = ui->lineEdit_3->text();
+    termnum = s.toInt();
+}
+QString str;
+void MainWindow::on_lineEdit_4_editingFinished()
+{
+    str = ui->lineEdit_4->text();
+
+}
+
+void MainWindow::on_pushButton_3_clicked()
+{
+     Which_Term(G,str);
+}
+
+void MainWindow::on_pushButton_5_clicked()
+{
+    QFileDialog file_dir(this);
+    if(file_dir.exec() == 0)return;
+  strlist = file_dir.selectedFiles();
+  filestr = strlist.join("");
+  filestr = filestr.replace(QRegExp("/"),"\\");
+
+}
